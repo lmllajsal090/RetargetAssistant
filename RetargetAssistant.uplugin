@@ -1,0 +1,15 @@
+{
+  "FileVersion": 3,
+  "Version": 2,
+  "VersionName": "0.2.0",
+  "FriendlyName": "动画重定向助手",
+  "Description": "Human skeleton diagnostics, isolated retarget setup and AI handoff reports. Editor only.",
+  "Category": "Animation",
+  "CanContainContent": true,
+  "EnabledByDefault": false,
+  "Plugins": [
+    {"Name": "PythonScriptPlugin", "Enabled": true},
+    {"Name": "EditorScriptingUtilities", "Enabled": true},
+    {"Name": "IKRig", "Enabled": true}
+  ]
+}
