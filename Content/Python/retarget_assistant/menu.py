@@ -36,6 +36,60 @@ def dispatch(action):
 def _dispatch(action):
     api.require_sandbox()
     job = api.load_session()
+    if action.startswith('ik_') or action.startswith('rig_'):
+        from . import workbench, control_rig
+        if action == 'ik_select':
+            assets = unreal.EditorUtilityLibrary.get_selected_assets()
+            if len(assets) != 1 or not isinstance(assets[0], unreal.AnimBlueprint):
+                raise ValueError('请只选择实际使用的 Animation Blueprint。')
+            job['ik_blueprint'] = assets[0].get_path_name()
+            api.save_session(job)
+            _message('已选择 IK 动画蓝图：\n'+job['ik_blueprint'])
+        elif action == 'ik_inspect':
+            report = workbench.inspect_blueprint(job.get('ik_blueprint', ''))
+            folder = workbench.save_diagnosis(report)
+            os.startfile(str(Path(folder)/'AI诊断报告.md'))
+        elif action == 'ik_aim':
+            assets = unreal.EditorUtilityLibrary.get_selected_assets()
+            if len(assets) != 1 or not isinstance(assets[0], unreal.BlendSpace):
+                raise ValueError('请选择一个 AimOffset / BlendSpace，检查中心样本与加法参考。')
+            folder = workbench.save_diagnosis(workbench.inspect_aim_offset(assets[0].get_path_name()))
+            os.startfile(str(Path(folder)/'AI诊断报告.md'))
+        elif action in ('ik_contact', 'ik_pie'):
+            if action == 'ik_pie':
+                world = unreal.EditorLevelLibrary.get_game_world()
+                character = unreal.GameplayStatics.get_player_character(world, 0) if world else None
+                if not character:
+                    raise ValueError('请先启动 PIE，并确认本地玩家是 Character。')
+                report = workbench.capture_contact(character, expected_anim_blueprint=job.get('ik_blueprint',''))
+            else:
+                actors = list(unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_selected_level_actors())
+                characters = [a for a in actors if isinstance(a, unreal.Character)]
+                if len(characters) != 1 or len(actors) > 2:
+                    raise ValueError('请在场景中选择一个 Character，可同时选择一把武器。')
+                weapon = next((a for a in actors if a != characters[0]), None)
+                report = workbench.capture_contact(characters[0], weapon, expected_anim_blueprint=job.get('ik_blueprint',''))
+            folder = workbench.save_diagnosis(report)
+            os.startfile(str(Path(folder)/'AI诊断报告.md'))
+        elif action == 'ik_preset':
+            os.startfile(workbench.create_preset(job.get('ik_blueprint', '')))
+        elif action == 'ik_apply':
+            report = workbench.apply_preset(workbench.load_config(job.get('ik_preset', '')))
+            unreal.EditorAssetLibrary.sync_browser_to_objects([report['copy']])
+            _message('已生成 IK 校准副本，原动画蓝图与玩家配置未改变。\n'+report['copy'])
+        elif action == 'ik_restore':
+            result = workbench.restore_generated(workbench.load_config(job.get('last_ik_restore', '')))
+            _message('已局部恢复生成副本中的 '+str(result['count'])+' 个引脚。后续有冲突时会停止恢复。')
+        elif action == 'rig_create':
+            report = control_rig.create_arm_rig(job.get('target_mesh', ''))
+            unreal.EditorAssetLibrary.sync_browser_to_objects([report['rig']])
+            _message('已建立双臂 Control Rig。打开后可操作双手目标、肘部与独立权重；先预览，再接入测试角色。\n'+report['rig'])
+        elif action in ('rig_open', 'ik_open'):
+            path = job.get('last_control_rig' if action == 'rig_open' else 'last_ik_copy')
+            if not path:
+                raise ValueError('请先生成对应资产。')
+            unreal.get_editor_subsystem(unreal.AssetEditorSubsystem).open_editor_for_assets([unreal.load_asset(path)])
+        return
     if action in ("source", "target"):
         job[action + "_mesh"] = _pick_mesh()
         job.pop("setup", None)
@@ -114,10 +168,22 @@ def install(quiet=False):
         ("setup", "5. 建立重定向配置", "Retarget"),
         ("preview", "6. 打开姿势与动画预览", "Retarget"),
         ("export", "7. 导出新动画", "Retarget"),
+        ("ik_select", "选择实际使用的动画蓝图", "IK"),
+        ("ik_inspect", "检查 IK 节点、空间和权重", "IK"),
+        ("ik_aim", "检查 AimOffset 中心与加法参考", "IK"),
+        ("ik_contact", "检查所选角色与武器握点", "IK"),
+        ("ik_pie", "采样当前 PIE 玩家握持", "IK"),
+        ("ik_preset", "导出可编辑的 IK 校准配置", "IK"),
+        ("ik_apply", "按配置生成 IK 校准副本", "IK"),
+        ("ik_open", "打开最近的 IK 校准副本", "IK"),
+        ("ik_restore", "局部恢复最近副本的 IK 参数", "IK"),
+        ("rig_create", "为目标角色生成双臂 Control Rig", "Rig"),
+        ("rig_open", "打开最近的 Control Rig", "Rig"),
         ("report", "打开最近的 AI 报告", "Info"),
         ("status", "查看当前选择与状态", "Info"),
     ]
-    for section, label in (("Setup", "选择和检查"), ("Retarget", "配置与导出"), ("Info", "帮助")):
+    for section, label in (("Setup", "选择和检查"), ("Retarget", "配置与导出"),
+                           ("IK", "持枪 IK 诊断与校准"), ("Rig", "Control Rig"), ("Info", "帮助")):
         menu.add_section(section, label)
     for action, label, section in entries:
         entry = unreal.ToolMenuEntry(name="RetargetAssistant_" + action, type=unreal.MultiBlockType.MENU_ENTRY)

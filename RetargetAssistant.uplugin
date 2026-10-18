@@ -1,15 +1,16 @@
 {
   "FileVersion": 3,
-  "Version": 2,
-  "VersionName": "0.2.0",
+  "Version": 3,
+  "VersionName": "0.3.0",
   "FriendlyName": "动画重定向助手",
-  "Description": "Human skeleton diagnostics, isolated retarget setup and AI handoff reports. Editor only.",
+  "Description": "Retargeting, weapon-contact IK diagnostics, reversible calibration copies and two-arm Control Rig authoring. Editor only.",
   "Category": "Animation",
   "CanContainContent": true,
   "EnabledByDefault": false,
   "Plugins": [
     {"Name": "PythonScriptPlugin", "Enabled": true},
     {"Name": "EditorScriptingUtilities", "Enabled": true},
-    {"Name": "IKRig", "Enabled": true}
+    {"Name": "IKRig", "Enabled": true},
+    {"Name": "ControlRig", "Enabled": true}
   ]
 }
